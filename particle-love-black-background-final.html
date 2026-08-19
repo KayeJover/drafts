@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Particle Love - Hand Gesture</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000000;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        canvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Small camera preview */
+        #handOverlay {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 15;
+            pointer-events: none;
+        }
+
+        #webcam {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 320px;
+            height: 180px;
+            object-fit: cover;
+            border: 2px solid #00bfff;
+            border-radius: 12px;
+            background: #000000;
+            transform: scaleX(-1);
+            z-index: 10;
+        }
+
+        #status {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+
+            color: #00bfff;
+            font-size: 20px;
+            text-align: center;
+            white-space: nowrap;
+
+            text-shadow:
+                0 0 5px #00bfff,
+                0 0 15px #00bfff,
+                0 0 30px #00bfff;
+        }
+
+        #startButton {
+            position: fixed;
+            left: 50%;
+            bottom: 25px;
+            transform: translateX(-50%);
+
+            z-index: 30;
+
+            padding: 12px 22px;
+            border: 1px solid #00bfff;
+            border-radius: 999px;
+
+            background: rgba(0, 0, 0, 0.75);
+            color: #00bfff;
+
+            font-size: 16px;
+            cursor: pointer;
+
+            box-shadow:
+                0 0 10px rgba(0, 191, 255, 0.5);
+        }
+
+        #startButton.hidden {
+            display: none;
+        }
+
+        html,
+        body,
+        #canvas {
+            background-color: #000000 !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="canvas"></canvas>
+
+    <canvas id="handOverlay"></canvas>
+
+    <video id="webcam" autoplay playsinline muted>
+    </video>
+
+    <div id="status">Particles ready — start camera</div>
+
+    <button id="startButton">
+        Start Camera
+    </button>
+
+
+    <script type="module">
+
+        /*
+         * =========================================================
+         * MEDIAPIPE
+         * =========================================================
+         */
+
+        import {
+            GestureRecognizer,
+            FilesetResolver
+        } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.mjs";
+
+
+        /*
+         * =========================================================
+         * ELEMENTS
+         * =========================================================
+         */
+
+        const canvas =
+            document.getElementById("canvas");
+
+        const ctx =
+            canvas.getContext("2d");
+
+        const handOverlay =
+            document.getElementById("handOverlay");
+
+        const handCtx =
+            handOverlay.getContext("2d");
+
+        const video =
+            document.getElementById("webcam");
+
+        const status =
+            document.getElementById("status");
+
+        const startButton =
+            document.getElementById("startButton");
+
+
+        /*
+         * =========================================================
+         * CANVAS
+         * =========================================================
+         */
+
+        let width = 0;
+        let height = 0;
+
+        function resizeCanvas() {
+
+            width =
+                canvas.width =
+                window.innerWidth;
+
+            height =
+                canvas.height =
+                window.innerHeight;
+
+            handOverlay.width =
+                window.innerWidth;
+
+            handOverlay.height =
+                window.innerHeight;
+        }
+
+        resizeCanvas();
+
+        window.addEventListener(
+            "resize",
+            resizeCanvas
+        );
+
+
+        /*
+         * =========================================================
+         * PARTICLES
+         * =========================================================
+         */
+
+        const PARTICLE_COUNT = 2200;
+
+        const particles = [];
+
+        let particleColor = "#168cff";
+
+        let currentShape = "scatter";
+
+
+        function random(min, max) {
+            return Math.random() *
+                (max - min) + min;
+        }
+
+
+        for (
+            let i = 0;
+            i < PARTICLE_COUNT;
+            i++
+        ) {
+
+            particles.push({
+
+                x: random(0, width),
+                y: random(0, height),
+
+                targetX: random(0, width),
+                targetY: random(0, height),
+
+                vx: random(-0.15, 0.15),
+                vy: random(-0.15, 0.15),
+
+                size: random(0.5, 2.1),
+
+                speed: random(0.08, 0.14),
+
+                phase: random(0, Math.PI * 2)
+
+            });
+        }
+
+
+        /*
+         * =========================================================
+         * SCATTER
+         * =========================================================
+         */
+
+        function createScatter() {
+
+            const points = [];
+
+            for (
+                let i = 0;
+                i < PARTICLE_COUNT;
+                i++
+            ) {
+
+                points.push({
+
+                    x: random(0, width),
+                    y: random(0, height)
+
+                });
+            }
+
+            return points;
+        }
+
+
+        /*
+         * =========================================================
+         * 3D-STYLE ORBITAL CIRCLE
+         * =========================================================
+         *
+         * Inspired by the reference image:
+         * an orange glowing ring with depth,
+         * orbiting particles and an elliptical view.
+         */
+
+        function createCircle() {
+
+            const points = [];
+
+            const cx = width / 2;
+            const cy = height / 2;
+
+            const minSize =
+                Math.min(width, height);
+
+            const majorRadius =
+                minSize * 0.31;
+
+            const tubeRadius =
+                minSize * 0.075;
+
+            for (
+                let i = 0;
+                i < PARTICLE_COUNT;
+                i++
+            ) {
+
+                const u =
+                    random(0, Math.PI * 2);
+
+                const v =
+                    random(0, Math.PI * 2);
+
+                const tube =
+                    majorRadius +
+                    tubeRadius *
+                    Math.cos(v);
+
+                const rawX =
+                    Math.cos(u) * tube;
+
+                const rawY =
+                    Math.sin(u) * tube;
+
+                const depth =
+                    Math.sin(v) *
+                    tubeRadius;
+
+                const perspective =
+                    1 +
+                    depth /
+                    (minSize * 1.6);
+
+                points.push({
+
+                    x:
+                        cx +
+                        rawX *
+                        perspective,
+
+                    y:
+                        cy +
+                        rawY *
+                        0.42 *
+                        perspective
+
+                });
+            }
+
+            return points;
+        }
+
+
+        /*
+         * =========================================================
+         * HEART
+         * =========================================================
+         *
+         * Uses the heart equation and fills the interior
+         * by mixing outline and interior points.
+         */
+
+        function createHeart() {
+
+            const points = [];
+
+            const cx = width / 2;
+            const cy = height / 2;
+
+            const scale =
+                Math.min(width, height) *
+                0.027;
+
+            for (
+                let i = 0;
+                i < PARTICLE_COUNT;
+                i++
+            ) {
+
+                const t =
+                    random(0, Math.PI * 2);
+
+                const x =
+                    16 *
+                    Math.pow(
+                        Math.sin(t),
+                        3
+                    );
+
+                const y =
+                    13 *
+                    Math.cos(t)
+                    - 5 *
+                    Math.cos(2 * t)
+                    - 2 *
+                    Math.cos(3 * t)
+                    - Math.cos(4 * t);
+
+                const fill =
+                    random(0.25, 1);
+
+                points.push({
+
+                    x:
+                        cx +
+                        x *
+                        scale *
+                        fill,
+
+                    y:
+                        cy -
+                        y *
+                        scale *
+                        fill
+
+                });
+            }
+
+            return points;
+        }
+
+
+        /*
+         * =========================================================
+         * I LOVE YOU TEXT
+         * =========================================================
+         */
+
+        function createText() {
+
+            const points = [];
+
+            const textCanvas =
+                document.createElement(
+                    "canvas"
+                );
+
+            const textCtx =
+                textCanvas.getContext("2d");
+
+            textCanvas.width = width;
+            textCanvas.height = height;
+
+            const fontSize =
+                Math.min(
+                    width * 0.18,
+                    155
+                );
+
+            textCtx.font =
+                `bold ${fontSize}px Arial`;
+
+            textCtx.textAlign =
+                "center";
+
+            textCtx.textBaseline =
+                "middle";
+
+            textCtx.fillStyle =
+                "#fff";
+
+            textCtx.fillText(
+                "I LOVE YOU",
+                width / 2,
+                height / 2
+            );
+
+            const imageData =
+                textCtx.getImageData(
+                    0,
+                    0,
+                    width,
+                    height
+                );
+
+            const data =
+                imageData.data;
+
+            const textPoints = [];
+
+            for (
+                let y = 0;
+                y < height;
+                y += 4
+            ) {
+
+                for (
+                    let x = 0;
+                    x < width;
+                    x += 4
+                ) {
+
+                    const index =
+                        (y * width + x) *
+                        4;
+
+                    if (
+                        data[index + 3] >
+                        100
+                    ) {
+
+                        textPoints.push({
+                            x,
+                            y
+                        });
+                    }
+                }
+            }
+
+            if (
+                textPoints.length === 0
+            ) {
+                return createScatter();
+            }
+
+            for (
+                let i = 0;
+                i < PARTICLE_COUNT;
+                i++
+            ) {
+
+                const point =
+                    textPoints[
+                    Math.floor(
+                        Math.random() *
+                        textPoints.length
+                    )
+                    ];
+
+                points.push({
+
+                    x:
+                        point.x +
+                        random(-1, 1),
+
+                    y:
+                        point.y +
+                        random(-1, 1)
+
+                });
+            }
+
+            return points;
+        }
+
+
+        /*
+         * =========================================================
+         * GET SHAPE
+         * =========================================================
+         */
+
+        function getShape(name) {
+
+            if (name === "circle") {
+                return createCircle();
+            }
+
+            if (name === "text") {
+                return createText();
+            }
+
+            if (name === "heart") {
+                return createHeart();
+            }
+
+            return createScatter();
+        }
+
+
+        /*
+         * =========================================================
+         * CHANGE SHAPE
+         * =========================================================
+         */
+
+        function setShape(
+            shape,
+            color
+        ) {
+
+            currentShape = shape;
+
+            particleColor = color;
+
+            const target =
+                getShape(shape);
+
+            particles.forEach(
+                (particle, i) => {
+
+                    particle.targetX =
+                        target[i].x;
+
+                    particle.targetY =
+                        target[i].y;
+
+                    // Fast response.
+                    particle.speed =
+                        random(
+                            0.18,
+                            0.30
+                        );
+                }
+            );
+        }
+
+
+        /*
+         * =========================================================
+         * STARTING PARTICLE POSITION
+         * =========================================================
+         */
+
+        const initial =
+            createScatter();
+
+        particles.forEach(
+            (particle, i) => {
+
+                particle.x =
+                    initial[i].x;
+
+                particle.y =
+                    initial[i].y;
+
+                particle.targetX =
+                    initial[i].x;
+
+                particle.targetY =
+                    initial[i].y;
+            }
+        );
+
+
+        /*
+         * =========================================================
+         * HAND LIGHT DATA
+         * =========================================================
+         */
+
+        let handLandmarks = [];
+
+        const handConnections = [
+
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 4],
+
+            [0, 5],
+            [5, 6],
+            [6, 7],
+            [7, 8],
+
+            [5, 9],
+            [9, 10],
+            [10, 11],
+            [11, 12],
+
+            [9, 13],
+            [13, 14],
+            [14, 15],
+            [15, 16],
+
+            [13, 17],
+            [17, 18],
+            [18, 19],
+            [19, 20],
+
+            [0, 17]
+
+        ];
+
+
+        /*
+         * =========================================================
+         * DRAW NEON HAND
+         * =========================================================
+         */
+
+        function drawHandLights() {
+
+            // Clear only the transparent hand overlay.
+            handCtx.clearRect(
+                0,
+                0,
+                handOverlay.width,
+                handOverlay.height
+            );
+
+            if (
+                !handLandmarks ||
+                handLandmarks.length === 0
+            ) {
+                return;
+            }
+
+            const rect =
+                video.getBoundingClientRect();
+
+            if (
+                rect.width <= 0 ||
+                rect.height <= 0
+            ) {
+                return;
+            }
+
+            handCtx.save();
+
+            /*
+             * Clip to the webcam rectangle so the neon hand
+             * can never appear elsewhere on the screen.
+             */
+            handCtx.beginPath();
+
+            handCtx.rect(
+                rect.left,
+                rect.top,
+                rect.width,
+                rect.height
+            );
+
+            handCtx.clip();
+
+            function handX(point) {
+                return (
+                    rect.left +
+                    (1 - point.x) *
+                    rect.width
+                );
+            }
+
+            function handY(point) {
+                return (
+                    rect.top +
+                    point.y *
+                    rect.height
+                );
+            }
+
+            /*
+             * Neon skeleton.
+             */
+            handCtx.lineWidth = 2.4;
+            handCtx.lineCap = "round";
+            handCtx.lineJoin = "round";
+
+            handCtx.strokeStyle =
+                "rgba(255, 70, 190, 0.98)";
+
+            handCtx.shadowBlur = 18;
+            handCtx.shadowColor = "#ff35b5";
+
+            handConnections.forEach(
+                ([a, b]) => {
+
+                    const p1 =
+                        handLandmarks[a];
+
+                    const p2 =
+                        handLandmarks[b];
+
+                    if (!p1 || !p2) {
+                        return;
+                    }
+
+                    handCtx.beginPath();
+
+                    handCtx.moveTo(
+                        handX(p1),
+                        handY(p1)
+                    );
+
+                    handCtx.lineTo(
+                        handX(p2),
+                        handY(p2)
+                    );
+
+                    handCtx.stroke();
+                }
+            );
+
+            /*
+             * Bright joints and fingertips.
+             */
+            handLandmarks.forEach(
+                (point, index) => {
+
+                    const x =
+                        handX(point);
+
+                    const y =
+                        handY(point);
+
+                    const fingertip =
+                        [
+                            4,
+                            8,
+                            12,
+                            16,
+                            20
+                        ].includes(index);
+
+                    const radius =
+                        fingertip ? 5 : 3;
+
+                    handCtx.beginPath();
+
+                    handCtx.arc(
+                        x,
+                        y,
+                        radius,
+                        0,
+                        Math.PI * 2
+                    );
+
+                    handCtx.fillStyle =
+                        fingertip
+                            ? "#ffffff"
+                            : "#ff55c8";
+
+                    handCtx.shadowBlur =
+                        fingertip ? 28 : 16;
+
+                    handCtx.shadowColor =
+                        "#ff35b5";
+
+                    handCtx.fill();
+                }
+            );
+
+            /*
+             * Light rays/sparks from the fingertips.
+             */
+            [
+                4,
+                8,
+                12,
+                16,
+                20
+            ].forEach(index => {
+
+                const point =
+                    handLandmarks[index];
+
+                if (!point) {
+                    return;
+                }
+
+                const x =
+                    handX(point);
+
+                const y =
+                    handY(point);
+
+                for (let i = 0; i < 3; i++) {
+
+                    const angle =
+                        Math.random() *
+                        Math.PI * 2;
+
+                    const distance =
+                        random(6, 24);
+
+                    handCtx.beginPath();
+
+                    handCtx.arc(
+                        x +
+                        Math.cos(angle) *
+                        distance,
+                        y +
+                        Math.sin(angle) *
+                        distance,
+                        random(0.8, 1.8),
+                        0,
+                        Math.PI * 2
+                    );
+
+                    handCtx.fillStyle =
+                        "rgba(255, 150, 230, 0.95)";
+
+                    handCtx.shadowBlur = 14;
+                    handCtx.shadowColor =
+                        "#ff35b5";
+
+                    handCtx.fill();
+                }
+            });
+
+            handCtx.restore();
+        }
+
+
+        /*
+         * =========================================================
+         * ANIMATION
+         * =========================================================
+         */
+
+        let animationTime = 0;
+
+        function animate() {
+
+            animationTime += 0.016;
+
+
+            /*
+             * Fade the previous frame.
+             * This creates the light-trail effect.
+             */
+
+            // Always paint the actual canvas pure black.
+            // This prevents any inherited teal/tinted background.
+            ctx.globalCompositeOperation = "source-over";
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "#000000";
+
+            ctx.fillRect(
+                0,
+                0,
+                width,
+                height
+            );
+
+
+            /*
+             * Move particles.
+             */
+
+            particles.forEach(
+                particle => {
+
+                    const dx =
+                        particle.targetX -
+                        particle.x;
+
+                    const dy =
+                        particle.targetY -
+                        particle.y;
+
+
+                    /*
+                     * Fast morphing when changing shape.
+                     * When scattered, use a very small drift so the
+                     * background looks alive without producing streaks.
+                     */
+
+                    const morphSpeed =
+                        currentShape === "scatter"
+                            ? 0.035
+                            : particle.speed;
+
+                    particle.x +=
+                        dx *
+                        morphSpeed;
+
+                    particle.y +=
+                        dy *
+                        morphSpeed;
+
+
+                    if (currentShape === "scatter") {
+
+                        particle.x +=
+                            Math.cos(
+                                animationTime * 0.7 +
+                                particle.phase
+                            ) * 0.018;
+
+                        particle.y +=
+                            Math.sin(
+                                animationTime * 0.6 +
+                                particle.phase
+                            ) * 0.018;
+
+                    } else {
+
+                        const floating =
+                            Math.sin(
+                                animationTime +
+                                particle.phase
+                            ) * 0.025;
+
+                        particle.x +=
+                            floating;
+
+                        particle.y +=
+                            Math.cos(
+                                animationTime * 0.8 +
+                                particle.phase
+                            ) * 0.018;
+                    }
+
+
+                    /*
+                     * Draw particle.
+                     */
+
+                    ctx.beginPath();
+
+                    ctx.arc(
+                        particle.x,
+                        particle.y,
+                        particle.size,
+                        0,
+                        Math.PI * 2
+                    );
+
+                    ctx.fillStyle =
+                        particleColor;
+
+                    ctx.shadowBlur =
+                        currentShape === "scatter"
+                            ? 5
+                            : 10;
+
+                    ctx.shadowColor =
+                        particleColor;
+
+                    ctx.fill();
+                }
+            );
+
+
+            /*
+             * Draw the hand on top.
+             */
+
+            drawHandLights();
+
+
+            requestAnimationFrame(
+                animate
+            );
+        }
+
+        animate();
+
+
+        /*
+         * =========================================================
+         * MEDIAPIPE GESTURE RECOGNITION
+         * =========================================================
+         */
+
+        let gestureRecognizer = null;
+
+        let lastGesture = "";
+
+        let lastVideoTime = -1;
+
+        let cameraStarted = false;
+
+
+        /*
+         * =========================================================
+         * START CAMERA
+         * =========================================================
+         */
+
+        async function startCamera() {
+
+            if (cameraStarted) {
+                return;
+            }
+
+            try {
+
+                status.textContent =
+                    "Requesting camera...";
+
+
+                /*
+                 * Ask for the camera first.
+                 */
+
+                const stream =
+                    await navigator
+                        .mediaDevices
+                        .getUserMedia({
+
+                            video: {
+
+                                width: {
+                                    ideal: 1280
+                                },
+
+                                height: {
+                                    ideal: 720
+                                },
+
+                                facingMode: "user"
+                            },
+
+                            audio: false
+                        });
+
+
+                video.srcObject =
+                    stream;
+
+
+                await video.play();
+
+
+                cameraStarted = true;
+
+                startButton.classList.add(
+                    "hidden"
+                );
+
+
+                status.textContent =
+                    "Loading hand recognition...";
+
+
+                /*
+                 * Load MediaPipe WASM.
+                 */
+
+                const vision =
+                    await FilesetResolver
+                        .forVisionTasks(
+
+                            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+
+                        );
+
+
+                /*
+                 * Load gesture model.
+                 */
+
+                gestureRecognizer =
+                    await GestureRecognizer
+                        .createFromOptions(
+
+                            vision,
+
+                            {
+
+                                baseOptions: {
+
+                                    modelAssetPath:
+                                        "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task"
+
+                                },
+
+                                runningMode:
+                                    "VIDEO",
+
+                                numHands: 1,
+
+                                minHandDetectionConfidence:
+                                    0.45,
+
+                                minHandPresenceConfidence:
+                                    0.45,
+
+                                minTrackingConfidence:
+                                    0.45
+                            }
+                        );
+
+
+                status.textContent =
+                    "Show your hand ✋";
+
+
+                detectGesture();
+
+
+            } catch (error) {
+
+                console.error(
+                    "CAMERA / MEDIAPIPE ERROR:",
+                    error
+                );
+
+
+                /*
+                 * Keep the particle animation
+                 * working even if the camera fails.
+                 */
+
+                if (
+                    error.name ===
+                    "NotAllowedError"
+                ) {
+
+                    status.textContent =
+                        "Camera permission denied";
+
+                } else if (
+                    error.name ===
+                    "NotFoundError"
+                ) {
+
+                    status.textContent =
+                        "No camera found";
+
+                } else if (
+                    error.name ===
+                    "NotReadableError"
+                ) {
+
+                    status.textContent =
+                        "Camera is already being used";
+
+                } else {
+
+                    status.textContent =
+                        "Camera failed — check Console";
+                }
+
+                startButton.classList.remove(
+                    "hidden"
+                );
+            }
+        }
+
+
+        /*
+         * =========================================================
+         * DETECT GESTURE
+         * =========================================================
+         */
+
+        function detectGesture() {
+
+            if (
+                gestureRecognizer &&
+                video.readyState >= 2 &&
+                video.currentTime !==
+                lastVideoTime
+            ) {
+
+                lastVideoTime =
+                    video.currentTime;
+
+
+                try {
+
+                    const result =
+                        gestureRecognizer
+                            .recognizeForVideo(
+
+                                video,
+
+                                performance.now()
+
+                            );
+
+
+                    /*
+                     * Get hand landmarks.
+                     */
+
+                    if (
+                        result.landmarks &&
+                        result.landmarks.length > 0
+                    ) {
+
+                        handLandmarks =
+                            result.landmarks[0];
+
+                    } else {
+
+                        handLandmarks = [];
+                    }
+
+
+                    /*
+                     * Get recognized gesture.
+                     */
+
+                    if (
+                        result.gestures &&
+                        result.gestures.length > 0 &&
+                        result.gestures[0].length > 0
+                    ) {
+
+                        const gesture =
+                            result.gestures[0][0];
+
+                        const name =
+                            gesture.categoryName;
+
+                        const confidence =
+                            gesture.score;
+
+
+                        if (
+                            confidence >= 0.45
+                        ) {
+
+                            handleGesture(
+                                name
+                            );
+                        }
+
+                    } else {
+
+                        status.textContent =
+                            "Hand detected — change gesture";
+                    }
+
+
+                } catch (error) {
+
+                    console.error(
+                        "GESTURE ERROR:",
+                        error
+                    );
+                }
+            }
+
+
+            requestAnimationFrame(
+                detectGesture
+            );
+        }
+
+
+        /*
+         * =========================================================
+         * HANDLE GESTURE
+         * =========================================================
+         */
+
+        function handleGesture(
+            gesture
+        ) {
+
+            /*
+             * Ignore the same gesture so we don't
+             * rebuild 3000 target positions every frame.
+             */
+
+            if (
+                gesture ===
+                lastGesture
+            ) {
+
+                return;
+            }
+
+
+            lastGesture =
+                gesture;
+
+
+            console.log(
+                "Detected gesture:",
+                gesture
+            );
+
+
+            switch (gesture) {
+
+                /*
+                 * 🤟 I LOVE YOU
+                 */
+
+                case "ILoveYou":
+
+                    status.textContent =
+                        "🤟 I LOVE YOU";
+
+                    setShape(
+                        "text",
+                        "#00bfff"
+                    );
+
+                    break;
+
+
+                /*
+                 * 🖐️ OPEN PALM
+                 */
+
+                case "Open_Palm":
+
+                    status.textContent =
+                        "🖐️ SCATTER";
+
+                    setShape(
+                        "scatter",
+                        "#00bfff"
+                    );
+
+                    break;
+
+
+                /*
+                 * ✊ CLOSED FIST
+                 */
+
+                case "Closed_Fist":
+
+                    status.textContent =
+                        "✊ HEART";
+
+                    setShape(
+                        "heart",
+                        "#ff4fa3"
+                    );
+
+                    break;
+
+
+                /*
+                 * ☝️ POINTING UP
+                 */
+
+                case "Pointing_Up":
+
+                    status.textContent =
+                        "☝️ ORBITAL RING";
+
+                    setShape(
+                        "circle",
+                        "#ff8c00"
+                    );
+
+                    break;
+
+
+                default:
+
+                    // MediaPipe can return "None" when no supported
+                    // gesture is confidently recognised. Keep the last
+                    // useful status instead of displaying "None".
+                    if (gesture !== "None") {
+                        status.textContent =
+                            gesture;
+                    }
+            }
+        }
+
+
+        /*
+         * =========================================================
+         * BUTTON
+         * =========================================================
+         */
+
+        startButton.addEventListener(
+            "click",
+            startCamera
+        );
+
+
+        /*
+         * =========================================================
+         * START AUTOMATICALLY
+         * =========================================================
+         *
+         * Browsers may block automatic camera access.
+         * If that happens, the button remains available.
+         */
+
+        startCamera();
+
+    </script>
+
+</body>
+
+</html>
