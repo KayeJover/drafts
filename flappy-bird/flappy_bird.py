@@ -39,8 +39,10 @@ DARK_GREEN = (30, 130, 50)
 
 music_file = "miss_miss.mp3"
 
-# Start at the section of the song containing the lyrics
+# Music starts at 1:00
 MUSIC_START = 60.0
+
+# Music stops at 1:44
 MUSIC_END = 104.0
 
 music_started = False
@@ -49,18 +51,40 @@ music_started = False
 # LYRICS
 # =========================================================
 
+# Time is measured from the moment the music starts at 1:00.
 lyrics = [
-    (0.0, "Oh nasa'n ka ba mahal"),
-    (4.1, "Hinahanap ka na ng puso koooo...."),
-    (9.6, "Baby ikaw lang talaga"),
-    (13.8, "Ang nami-miss ko sa tuwi-tuwina"),
-    (20.3, "Sa tuwi-tuwinaaaaa"),
-    (25.2, "At baby ako'y mag-aabang"),
-    (28.9, "At dadalhin ka sa nakaraan"),
-    (34.0, "Sa nakaraan...")
-]
+    (0.0, "Oh"),
+    (1.0, "nasa'n"),
+    (2.0, "ka ba"),
+    (3.0, "mahal"),
 
-lyric_font = pygame.font.Font(None, 42)
+    (4.1, "Hinahanap"),
+    (5.3, "ka na"),
+    (6.5, "ng puso"),
+    (7.7, "ko....."),
+
+    (9.6, "Baby"),
+    (10.3, "ikaw lang"),
+    (10.8, "talaga"),
+
+    (13.8, "Ang nami-miss"),
+    (15.0, "ko sa"),
+    (16.0, "tuwi-tuwina"),
+
+    (20.2, "Sa"),
+    (21.0, "tuwi-tuwina...."),
+
+    (25.2, "At baby"),
+    (26.5, "ako'y"),
+    (26.9, "mag-aabang"),
+
+    (28.9, "At dadalhin"),
+    (31.2, "ka sa"),
+    (31.9, "nakaraan...."),
+
+    (35.0, "Sa"),
+    (35.9, "nakaraan...")
+]
 
 # =========================================================
 # GAME STATE
@@ -93,7 +117,7 @@ pipes = []
 
 def create_pipe(x):
 
-    # Make the first pipe easier
+    # Keep the first pipe centred and easier
     if x == 600:
         gap_y = 300
     else:
@@ -124,6 +148,30 @@ def create_pipe(x):
 pipes.append(create_pipe(600))
 
 # =========================================================
+# LYRIC FONT FUNCTION
+# =========================================================
+
+def create_lyric_font(text):
+
+    font_size = 100
+    max_width = WIDTH - 80
+
+    while font_size > 40:
+
+        font = pygame.font.Font(
+            None,
+            font_size
+        )
+
+        if font.size(text)[0] <= max_width:
+            return font
+
+        font_size -= 2
+
+    return pygame.font.Font(None, 40)
+
+
+# =========================================================
 # GAME LOOP
 # =========================================================
 
@@ -140,7 +188,7 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-        # SPACE = FLAP
+        # SPACE makes the bird jump
         if event.type == pygame.KEYDOWN:
 
             if event.key == pygame.K_SPACE:
@@ -171,7 +219,7 @@ while running:
             pipe["bottom"].x -= pipe_speed
 
         # -------------------------------------------------
-        # CREATE NEW PIPE
+        # ADD NEW PIPE
         # -------------------------------------------------
 
         if pipes[-1]["top"].x < 400:
@@ -191,7 +239,7 @@ while running:
         ]
 
         # -------------------------------------------------
-        # BIRD RECTANGLE
+        # BIRD COLLISION RECTANGLE
         # -------------------------------------------------
 
         bird_rect = pygame.Rect(
@@ -210,11 +258,13 @@ while running:
             if bird_rect.colliderect(
                 pipe["top"]
             ):
+
                 game_over = True
 
             if bird_rect.colliderect(
                 pipe["bottom"]
             ):
+
                 game_over = True
 
         # -------------------------------------------------
@@ -239,7 +289,7 @@ while running:
 
         if game_over:
 
-            # Start the music immediately
+            # Start the song at exactly 1:00
             pygame.mixer.music.load(
                 music_file
             )
@@ -251,11 +301,11 @@ while running:
 
             music_started = True
 
-            # Go directly to lyrics page
+            # Immediately switch to lyric page
             lyrics_page = True
 
     # =====================================================
-    # NORMAL GAME SCREEN
+    # GAME SCREEN
     # =====================================================
 
     if not lyrics_page:
@@ -267,7 +317,7 @@ while running:
         screen.fill(SKY_BLUE)
 
         # -------------------------------------------------
-        # PIPES
+        # DRAW PIPES
         # -------------------------------------------------
 
         for pipe in pipes:
@@ -286,7 +336,7 @@ while running:
                 pipe["bottom"]
             )
 
-            # Top pipe cap
+            # Top cap
             top_cap = pygame.Rect(
                 pipe["top"].x - 5,
                 pipe["top"].bottom - 20,
@@ -294,7 +344,7 @@ while running:
                 20
             )
 
-            # Bottom pipe cap
+            # Bottom cap
             bottom_cap = pygame.Rect(
                 pipe["bottom"].x - 5,
                 pipe["bottom"].top,
@@ -315,7 +365,7 @@ while running:
             )
 
         # -------------------------------------------------
-        # BIRD
+        # DRAW BIRD
         # -------------------------------------------------
 
         pygame.draw.circle(
@@ -374,14 +424,17 @@ while running:
                 )
             ]
         )
+
     # =====================================================
-    # LYRICS PAGE
+    # LYRIC PAGE
     # =====================================================
 
     if lyrics_page:
 
-        # Black background
-        screen.fill(BLACK)
+        # -------------------------------------------------
+        # WHITE BACKGROUND
+        # -------------------------------------------------
+        screen.fill(WHITE)
 
         # -------------------------------------------------
         # GET MUSIC POSITION
@@ -396,12 +449,14 @@ while running:
         # STOP MUSIC AT 1:44
         # -------------------------------------------------
 
-        if music_position >= (MUSIC_END - MUSIC_START):
+        if music_position >= (
+            MUSIC_END - MUSIC_START
+        ):
 
             pygame.mixer.music.stop()
 
         # -------------------------------------------------
-        # FIND CURRENT LYRIC
+        # FIND CURRENT LYRIC PHRASE
         # -------------------------------------------------
 
         current_lyric = ""
@@ -409,19 +464,22 @@ while running:
         for timestamp, text in lyrics:
 
             if music_position >= timestamp:
-
                 current_lyric = text
 
         # -------------------------------------------------
-        # DISPLAY CURRENT LYRIC
+        # DISPLAY CURRENT PHRASE
         # -------------------------------------------------
 
         if current_lyric:
 
+            lyric_font = create_lyric_font(
+                current_lyric
+            )
+
             lyric_text = lyric_font.render(
                 current_lyric,
                 True,
-                WHITE
+                BLACK
             )
 
             lyric_rect = lyric_text.get_rect(
@@ -437,7 +495,7 @@ while running:
             )
 
     # =====================================================
-    # UPDATE SCREEN
+    # UPDATE DISPLAY
     # =====================================================
 
     pygame.display.flip()
