@@ -39,10 +39,10 @@ DARK_GREEN = (30, 130, 50)
 
 music_file = "miss_miss.mp3"
 
-# Music starts at 1:00
+# Start the song at exactly 1:00
 MUSIC_START = 60.0
 
-# Music stops at 1:44
+# Stop the song at exactly 1:44
 MUSIC_END = 104.0
 
 music_started = False
@@ -50,8 +50,14 @@ music_started = False
 # =========================================================
 # LYRICS
 # =========================================================
+#
+# These timestamps are relative to the music starting
+# at 1:00.
+#
+# We are using selected phrases rather than displaying
+# every individual word.
+# =========================================================
 
-# Time is measured from the moment the music starts at 1:00.
 lyrics = [
     (0.0, "Oh"),
     (1.0, "nasa'n"),
@@ -90,8 +96,20 @@ lyrics = [
 # GAME STATE
 # =========================================================
 
+start_screen = True
 game_over = False
 lyrics_page = False
+
+# =========================================================
+# START BUTTON
+# =========================================================
+
+start_button_rect = pygame.Rect(
+    250,
+    300,
+    300,
+    90
+)
 
 # =========================================================
 # BIRD
@@ -117,7 +135,7 @@ pipes = []
 
 def create_pipe(x):
 
-    # Keep the first pipe centred and easier
+    # Make the first pipe easier
     if x == 600:
         gap_y = 300
     else:
@@ -148,27 +166,59 @@ def create_pipe(x):
 pipes.append(create_pipe(600))
 
 # =========================================================
-# LYRIC FONT FUNCTION
+# LYRIC FONT
 # =========================================================
 
 def create_lyric_font(text):
 
-    font_size = 100
+    # Start with a large font
+    font_size = 90
+
+    # Keep text inside the screen
     max_width = WIDTH - 80
 
-    while font_size > 40:
+    while font_size > 35:
 
         font = pygame.font.Font(
             None,
             font_size
         )
 
-        if font.size(text)[0] <= max_width:
+        text_width = font.size(text)[0]
+
+        if text_width <= max_width:
             return font
 
         font_size -= 2
 
-    return pygame.font.Font(None, 40)
+    return pygame.font.Font(
+        None,
+        35
+    )
+
+
+# =========================================================
+# RESET GAME
+# =========================================================
+
+def reset_game():
+
+    global bird_y
+    global bird_velocity
+    global pipes
+    global game_over
+    global lyrics_page
+    global music_started
+
+    bird_y = 300
+    bird_velocity = 0
+
+    pipes = []
+    pipes.append(create_pipe(600))
+
+    game_over = False
+    lyrics_page = False
+    music_started = False
 
 
 # =========================================================
@@ -185,28 +235,154 @@ while running:
 
     for event in pygame.event.get():
 
+        # -------------------------------------------------
+        # CLOSE WINDOW
+        # -------------------------------------------------
+
         if event.type == pygame.QUIT:
+
             running = False
 
-        # SPACE makes the bird jump
+        # -------------------------------------------------
+        # KEYBOARD
+        # -------------------------------------------------
+
         if event.type == pygame.KEYDOWN:
 
+            # SPACE
             if event.key == pygame.K_SPACE:
 
-                if not game_over:
+                # Start game from start screen
+                if start_screen:
+
+                    start_screen = False
+
+                # Jump during game
+                elif not game_over and not lyrics_page:
+
                     bird_velocity = -8
+
+        # -------------------------------------------------
+        # MOUSE
+        # -------------------------------------------------
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+
+            # Click START THE GAME
+            if start_screen:
+
+                if start_button_rect.collidepoint(
+                    event.pos
+                ):
+
+                    start_screen = False
+
+    # =====================================================
+    # START SCREEN
+    # =====================================================
+
+    if start_screen:
+
+        # White background
+        screen.fill(WHITE)
+
+        # -------------------------------------------------
+        # TITLE
+        # -------------------------------------------------
+
+        title_font = pygame.font.Font(
+            None,
+            75
+        )
+
+        title_text = title_font.render(
+            "FLAPPY BIRD",
+            True,
+            BLACK
+        )
+
+        title_rect = title_text.get_rect(
+            center=(
+                WIDTH // 2,
+                180
+            )
+        )
+
+        screen.blit(
+            title_text,
+            title_rect
+        )
+
+        # -------------------------------------------------
+        # START BUTTON
+        # -------------------------------------------------
+
+        pygame.draw.rect(
+            screen,
+            GREEN,
+            start_button_rect,
+            border_radius=15
+        )
+
+        button_font = pygame.font.Font(
+            None,
+            42
+        )
+
+        button_text = button_font.render(
+            "START THE GAME",
+            True,
+            WHITE
+        )
+
+        button_text_rect = button_text.get_rect(
+            center=start_button_rect.center
+        )
+
+        screen.blit(
+            button_text,
+            button_text_rect
+        )
+
+        # -------------------------------------------------
+        # INSTRUCTION
+        # -------------------------------------------------
+
+        instruction_font = pygame.font.Font(
+            None,
+            28
+        )
+
+        instruction_text = instruction_font.render(
+            "Click the button or press SPACE",
+            True,
+            BLACK
+        )
+
+        instruction_rect = instruction_text.get_rect(
+            center=(
+                WIDTH // 2,
+                440
+            )
+        )
+
+        screen.blit(
+            instruction_text,
+            instruction_rect
+        )
 
     # =====================================================
     # NORMAL GAME
     # =====================================================
 
-    if not game_over:
+    elif not game_over:
 
         # -------------------------------------------------
         # BIRD PHYSICS
         # -------------------------------------------------
 
         bird_velocity += gravity
+
         bird_y += bird_velocity
 
         # -------------------------------------------------
@@ -284,12 +460,11 @@ while running:
             game_over = True
 
         # -------------------------------------------------
-        # GAME OVER
+        # START MUSIC WHEN GAME OVER
         # -------------------------------------------------
 
-        if game_over:
+        if game_over and not music_started:
 
-            # Start the song at exactly 1:00
             pygame.mixer.music.load(
                 music_file
             )
@@ -301,14 +476,23 @@ while running:
 
             music_started = True
 
-            # Immediately switch to lyric page
+            # Immediately show lyrics page
             lyrics_page = True
 
     # =====================================================
-    # GAME SCREEN
+    # DRAW NORMAL GAME
     # =====================================================
 
-    if not lyrics_page:
+    elif game_over and not lyrics_page:
+
+        # This section is kept as a fallback
+        screen.fill(SKY_BLUE)
+
+    # =====================================================
+    # NORMAL GAME DRAWING
+    # =====================================================
+
+    if not start_screen and not lyrics_page:
 
         # -------------------------------------------------
         # BACKGROUND
@@ -317,7 +501,7 @@ while running:
         screen.fill(SKY_BLUE)
 
         # -------------------------------------------------
-        # DRAW PIPES
+        # PIPES
         # -------------------------------------------------
 
         for pipe in pipes:
@@ -365,7 +549,7 @@ while running:
             )
 
         # -------------------------------------------------
-        # DRAW BIRD
+        # BIRD
         # -------------------------------------------------
 
         pygame.draw.circle(
@@ -379,7 +563,7 @@ while running:
         )
 
         # -------------------------------------------------
-        # BIRD EYE
+        # EYE
         # -------------------------------------------------
 
         pygame.draw.circle(
@@ -403,7 +587,7 @@ while running:
         )
 
         # -------------------------------------------------
-        # BIRD BEAK
+        # BEAK
         # -------------------------------------------------
 
         pygame.draw.polygon(
@@ -426,7 +610,7 @@ while running:
         )
 
     # =====================================================
-    # LYRIC PAGE
+    # LYRICS PAGE
     # =====================================================
 
     if lyrics_page:
@@ -434,6 +618,7 @@ while running:
         # -------------------------------------------------
         # WHITE BACKGROUND
         # -------------------------------------------------
+
         screen.fill(WHITE)
 
         # -------------------------------------------------
@@ -456,7 +641,7 @@ while running:
             pygame.mixer.music.stop()
 
         # -------------------------------------------------
-        # FIND CURRENT LYRIC PHRASE
+        # FIND CURRENT LYRIC
         # -------------------------------------------------
 
         current_lyric = ""
@@ -464,10 +649,11 @@ while running:
         for timestamp, text in lyrics:
 
             if music_position >= timestamp:
+
                 current_lyric = text
 
         # -------------------------------------------------
-        # DISPLAY CURRENT PHRASE
+        # DISPLAY CURRENT LYRIC
         # -------------------------------------------------
 
         if current_lyric:
@@ -495,7 +681,7 @@ while running:
             )
 
     # =====================================================
-    # UPDATE DISPLAY
+    # UPDATE SCREEN
     # =====================================================
 
     pygame.display.flip()
