@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Love</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+
+        body {
+            background: #000;
+        }
+
+        canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            background: #000;
+        }
+
+        #error {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%);
+            z-index: 10;
+            color: #fff;
+            font: 14px Arial, sans-serif;
+            text-align: center;
+            background: rgba(0, 0, 0, .75);
+            padding: 10px 16px;
+            border-radius: 8px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="canvas"></canvas>
+    <div id="error"></div>
+
+    <script>
+        "use strict";
+
+        // =====================================================
+        // CANVAS
+        // =====================================================
+
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d", { alpha: false });
+        const errorBox = document.getElementById("error");
+
+        let width = 0;
+        let height = 0;
+
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+            canvas.width = Math.floor(width * dpr);
+            canvas.height = Math.floor(height * dpr);
+            canvas.style.width = width + "px";
+            canvas.style.height = height + "px";
+
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            if (photo.complete && photo.naturalWidth > 0) {
+                buildPhotoTargets();
+            }
+        }
+
+        window.addEventListener("resize", resizeCanvas);
+
+
+
+        // =====================================================
+        // SETTINGS
+        // =====================================================
+
+        const PARTICLE_COUNT = 5000;
+        const SAMPLE_STEP = 4;
+
+        const particles = [];
+
+
+        // =====================================================
+        // HELPERS
+        // =====================================================
+
+        function random(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        function showError(message) {
+            errorBox.textContent = message;
+            errorBox.style.display = "block";
+        }
+
+        function hideError() {
+            errorBox.style.display = "none";
+        }
+
+
+        // =====================================================
+        // CREATE PARTICLES
+        // =====================================================
+
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push({
+                x: random(0, Math.max(width, 1)),
+                y: random(0, Math.max(height, 1)),
+
+                targetX: random(0, Math.max(width, 1)),
+                targetY: random(0, Math.max(height, 1)),
+
+                size: random(0.9, 2.1),
+
+                speed: random(0.055, 0.095),
+
+                color: "#168cff",
+
+                phase: random(0, Math.PI * 2)
+            });
+        }
+
+
+        // =====================================================
+        // PHOTO
+        // =====================================================
+
+        const photo = new Image();
+        photo.src = "images/couple.jpg";
+
+        let photoLoaded = false;
+
+        photo.onload = function () {
+            photoLoaded = true;
+            buildPhotoTargets();
+        };
+
+        photo.onerror = function () {
+            showError("Photo not found. Make sure your file is: images/couple.jpg");
+
+            resizeCanvas();
+
+            // Even if the photo is missing, show a visible particle field
+            // so we know the animation itself is working.
+            for (const p of particles) {
+                p.targetX = random(width * 0.2, width * 0.8);
+                p.targetY = random(height * 0.2, height * 0.8);
+                p.color = "#168cff";
+            }
+        };
+
+
+        // =====================================================
+        // BUILD PHOTO TARGETS
+        // =====================================================
+
+        function buildPhotoTargets() {
+
+            if (!photo.naturalWidth || !photo.naturalHeight) {
+                return;
+            }
+
+            const maxWidth = Math.min(width * 0.72, 900);
+            const maxHeight = height * 0.78;
+
+            let photoWidth = maxWidth;
+            let photoHeight =
+                photoWidth *
+                photo.naturalHeight /
+                photo.naturalWidth;
+
+            if (photoHeight > maxHeight) {
+                photoHeight = maxHeight;
+
+                photoWidth =
+                    photoHeight *
+                    photo.naturalWidth /
+                    photo.naturalHeight;
+            }
+
+            const offscreen = document.createElement("canvas");
+
+            offscreen.width = Math.max(1, Math.floor(photoWidth));
+            offscreen.height = Math.max(1, Math.floor(photoHeight));
+
+            const pctx = offscreen.getContext("2d");
+
+            pctx.drawImage(
+                photo,
+                0,
+                0,
+                offscreen.width,
+                offscreen.height
+            );
+
+            const imageData = pctx.getImageData(
+                0,
+                0,
+                offscreen.width,
+                offscreen.height
+            );
+
+            const data = imageData.data;
+            const points = [];
+
+            const offsetX = (width - photoWidth) / 2;
+            const offsetY = (height - photoHeight) / 2;
+
+            for (
+                let y = 0;
+                y < offscreen.height;
+                y += SAMPLE_STEP
+            ) {
+                for (
+                    let x = 0;
+                    x < offscreen.width;
+                    x += SAMPLE_STEP
+                ) {
+                    const i =
+                        (y * offscreen.width + x) * 4;
+
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const a = data[i + 3];
+
+                    if (a < 80) {
+                        continue;
+                    }
+
+                    // Keep dark areas too. They are important for
+                    // recognising the people and background.
+                    points.push({
+                        x: offsetX + x,
+                        y: offsetY + y,
+                        color: `rgb(${r},${g},${b})`
+                    });
+                }
+            }
+
+            if (points.length === 0) {
+                showError("The photo loaded, but no pixels were found.");
+                return;
+            }
+
+            // Shuffle the photo points so particles are distributed naturally.
+            for (let i = points.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [points[i], points[j]] = [points[j], points[i]];
+            }
+
+            particles.forEach((p, i) => {
+                const point = points[i % points.length];
+
+                p.targetX = point.x;
+                p.targetY = point.y;
+                p.color = point.color;
+
+                // Fast initial movement.
+                p.speed = random(0.075, 0.13);
+            });
+        }
+
+
+        // =====================================================
+        // DRAW
+        // =====================================================
+
+        function drawParticle(p) {
+            ctx.beginPath();
+
+            ctx.arc(
+                p.x,
+                p.y,
+                p.size,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle = p.color;
+            ctx.fill();
+        }
+
+
+        // =====================================================
+        // ANIMATION
+        // =====================================================
+
+        let time = 0;
+
+        function animate() {
+            time += 0.016;
+
+            // Solid black every frame.
+            ctx.globalCompositeOperation = "source-over";
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, width, height);
+
+            for (const p of particles) {
+                const dx = p.targetX - p.x;
+                const dy = p.targetY - p.y;
+
+                // Smooth movement toward the photo.
+                p.x += dx * p.speed;
+                p.y += dy * p.speed;
+
+                // Tiny living motion once particles settle.
+                if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
+                    p.x += Math.sin(time + p.phase) * 0.03;
+                    p.y += Math.cos(time * 0.8 + p.phase) * 0.03;
+                }
+
+                drawParticle(p);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+    </script>
+
+</body>
+
+</html>

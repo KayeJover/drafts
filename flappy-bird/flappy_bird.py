@@ -1,6 +1,7 @@
 import pygame
 import sys
 import random
+import pygbag.aio as asyncio
 
 # =========================================================
 # INITIALISE PYGAME
@@ -58,39 +59,39 @@ music_started = False
 # every individual word.
 # =========================================================
 
-lyrics = [
-    (0.0, "Oh"),
-    (1.0, "nasa'n"),
-    (2.0, "ka ba"),
-    (3.0, "mahal"),
-
-    (4.1, "Hinahanap"),
-    (5.3, "ka na"),
-    (6.5, "ng puso"),
-    (7.7, "ko....."),
-
-    (9.6, "Baby"),
-    (10.3, "ikaw lang"),
-    (10.8, "talaga"),
-
-    (13.8, "Ang nami-miss"),
-    (15.0, "ko sa"),
-    (16.0, "tuwi-tuwina"),
-
-    (20.2, "Sa"),
-    (21.0, "tuwi-tuwina...."),
-
-    (25.2, "At baby"),
-    (26.5, "ako'y"),
-    (26.9, "mag-aabang"),
-
-    (28.9, "At dadalhin"),
-    (31.2, "ka sa"),
-    (31.9, "nakaraan...."),
-
-    (35.0, "Sa"),
-    (35.9, "nakaraan...")
-]
+lyrics = [ 
+    (0.0, "Oh"), 
+    (1.0, "nasa'n"), 
+    (2.0, "ka ba"), 
+    (3.0, "mahal"), 
+ 
+    (4.1, "Hinahanap"), 
+    (5.3, "ka na"), 
+    (6.5, "ng puso"), 
+    (7.7, "ko....."), 
+ 
+    (9.6, "Baby"), 
+    (10.3, "ikaw lang"), 
+    (10.8, "talaga"), 
+ 
+    (13.8, "Ang nami-miss"), 
+    (15.0, "ko sa"), 
+    (16.0, "tuwi-tuwina"), 
+ 
+    (20.2, "Sa"), 
+    (21.0, "tuwi-tuwina...."), 
+ 
+    (25.2, "At baby"), 
+    (26.5, "ako'y"), 
+    (26.9, "mag-aabang"), 
+ 
+    (28.9, "At dadalhin"), 
+    (31.2, "ka sa"), 
+    (31.9, "nakaraan...."), 
+ 
+    (35.0, "Sa"), 
+    (35.9, "nakaraan...") 
+]  
 
 # =========================================================
 # GAME STATE
